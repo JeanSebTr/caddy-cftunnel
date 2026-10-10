@@ -40,11 +40,12 @@ go build -o caddy ./cmd/caddy     # Go 1.26+
 ```
 
 With xcaddy, repeat the `replace` directives from `go.mod`: dependents do
-not inherit them.
+not inherit them. The last one points at a stub directory of this repository,
+so run it from a clone (or copy `third_party/otel-propagators-empty`).
 
 ```sh
 xcaddy build \
-  --with example.com/caddy-cftunnel=./ \
+  --with github.com/JeanSebTr/caddy-cftunnel \
   --replace github.com/quic-go/quic-go=github.com/chungthuang/quic-go@v0.45.1-0.20260529212404-a9fddf436fc4 \
   --replace github.com/urfave/cli/v2=github.com/ipostelnik/cli/v2@v2.3.1-0.20210324024421-b6ea8234fe3d \
   --replace go.opentelemetry.io/contrib/propagators=./third_party/otel-propagators-empty
@@ -76,6 +77,8 @@ xcaddy build \
   stand-in TLS state: `{http.request.scheme}` is `https`, `protocol https`
   matches, `reverse_proxy` sends `X-Forwarded-Proto: https`. TLS version,
   cipher and client certificates are not known, so their placeholders are empty.
-- Only HTTP and WebSocket traffic is served; WARP routing / raw TCP is not.
+- Only HTTP traffic is tested. WebSocket upgrades are handed to Caddy (both
+  of cloudflared's transports support hijacking), and private-network (WARP)
+  routing is wired up as in cloudflared, but neither has been tested.
 - Duplicate Prometheus registrations are ignored process-wide, because
   cloudflared's supervisor registers metrics unguarded on the global registry.
