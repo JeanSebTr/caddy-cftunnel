@@ -103,6 +103,21 @@ type tunnel struct {
 func (t *tunnel) setTarget(h http.Handler) { t.target.Store(&h) }
 
 func (t *tunnel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// cloudflared calls this handler from its own stream goroutine, without
+	// the recover net/http's server puts around handlers. Do the same here,
+	// or any handler panic kills the process. reverse_proxy panics with
+	// http.ErrAbortHandler on purpose when a streamed response breaks off
+	// (a client closing an SSE stream, for one): net/http swallows that one
+	// silently, and so do we.
+	defer func() {
+		if v := recover(); v != nil && v != http.ErrAbortHandler {
+			buf := make([]byte, 64<<10)
+			buf = buf[:runtime.Stack(buf, false)]
+			t.logs.logger.Load().Error("panic serving tunnel request",
+				zap.Any("panic", v), zap.String("host", r.Host),
+				zap.String("uri", r.RequestURI), zap.ByteString("stack", buf))
+		}
+	}()
 	h := t.target.Load()
 	if h == nil {
 		http.Error(w, "tunnel not ready", http.StatusServiceUnavailable)

@@ -411,3 +411,15 @@ func TestParseResolverAddrs(t *testing.T) {
 		}
 	}
 }
+
+func TestTunnelRecoversHandlerPanics(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	tun := &tunnel{logs: newZapWriter(zap.New(core))}
+	for _, v := range []any{http.ErrAbortHandler, "boom"} {
+		tun.setTarget(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic(v) }))
+		tun.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	}
+	if got := logs.FilterMessage("panic serving tunnel request").Len(); got != 1 {
+		t.Fatalf("logged %d panics, want 1 (ErrAbortHandler must stay silent)", got)
+	}
+}
