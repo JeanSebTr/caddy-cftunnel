@@ -257,8 +257,15 @@ func TestRealConnector(t *testing.T) {
 	// Twice in one process: the second supervisor re-registers its metrics,
 	// which panics without tolerantRegisterer. The second run uses static DNS
 	// resolvers, which must skip the local resolver refresh loop.
+	//
+	// Under -race both runs use static resolvers: cloudflared's refresh loop
+	// (ingress/origins resolver.peekDial) records the dialed nameserver
+	// without a lock, and Go dials the A and AAAA queries concurrently. The
+	// race is upstream and harmless (both writes carry the same nameserver,
+	// read only after both queries return), but fails the race detector.
 	for i := range 2 {
-		if i == 1 {
+		static := i == 1 || raceEnabled
+		if static {
 			opts.DNSResolverAddrs = []netip.AddrPort{netip.MustParseAddrPort("1.1.1.1:53")}
 		}
 		core, logs := observer.New(zap.DebugLevel)
@@ -298,7 +305,7 @@ func TestRealConnector(t *testing.T) {
 		// With static resolvers, wait for the supervisor (which resolves the
 		// edge again first) to skip the refresh loop.
 		time.Sleep(3 * time.Second)
-		if i == 1 {
+		if static {
 			deadline := time.Now().Add(30 * time.Second)
 			for logs.FilterMessageSnippet("Canceled DNS local resolver refresh loop").Len() == 0 {
 				if time.Now().After(deadline) {
@@ -315,7 +322,7 @@ func TestRealConnector(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("run %d: shutdown took %s", i, time.Since(start).Round(time.Millisecond))
-		if logs.FilterMessageSnippet("Version 2026.10.0").Len() == 0 {
+		if logs.FilterMessageSnippet("Version "+cloudflaredVersion).Len() == 0 {
 			t.Fatal("cloudflared logs did not reach zap")
 		}
 		for _, e := range logs.FilterMessageSnippet("Register tunnel error").All() {

@@ -10,8 +10,8 @@ import (
 // reports it. It must be the release tag of the pinned cloudflared commit:
 // the connector protocol code running here *is* that release.
 const (
-	cloudflaredVersion = "2026.10.0"
-	cloudflaredCommit  = "18cdfe0a6fc7" // tag 2026.10.0
+	cloudflaredVersion = "2026.10.4"
+	cloudflaredCommit  = "dc3b264da64a" // tag 2026.10.4
 )
 
 // checkPinnedVersion refuses to start if go.mod was bumped without updating
