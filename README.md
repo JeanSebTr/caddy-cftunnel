@@ -33,6 +33,50 @@ nameserver in `/etc/resolv.conf` does not answer, that lookup always fails and
 logs `Failed to refresh DNS local resolver ... i/o timeout`. On macOS, the
 system resolver ignores `/etc/resolv.conf` but Go's resolver does not.
 
+## TCP services: `cf_access`
+
+`cloudflared access ssh|tcp|rdp` carries TCP over a WebSocket request to the
+hostname. The `cf_access` handler accepts those requests and pipes them to a
+TCP upstream, so a site can serve both its web app and a TCP service:
+
+```caddyfile
+{
+	order cf_access after forward_auth
+}
+
+app.example.com {
+	forward_auth localhost:9000 {
+		uri /verify
+	}
+	cf_access tcp://10.0.0.5:22
+	reverse_proxy 10.0.0.5:80
+}
+```
+
+```sh
+ssh -o ProxyCommand="cloudflared access ssh --hostname %h" user@app.example.com
+```
+
+- Only WebSocket requests from the cloudflared client (`User-Agent:
+  cloudflared/<version>`) are taken. Everything else, including the site's
+  own WebSockets, goes to the next handler.
+- The upstream is `tcp://host:port` or `host:port`, and supports placeholders.
+- `cf_access bastion` connects to the address the client asks for with
+  `--destination` (`Cf-Access-Jump-Destination`), like cloudflared's bastion
+  mode: `cloudflared access ssh --hostname %h --destination 10.0.0.5:22`.
+- `dial_timeout <duration>` in a block sets the connect timeout (default 30s).
+- It works on any listener, not just the tunnel.
+
+`cf_access` does no authentication. It hands out a raw TCP connection, and
+in bastion mode a connection to any address Caddy can reach, so protect it:
+put it after an authentication handler (`forward_auth` above is one way)
+and make sure that handler also covers requests that bypass Cloudflare
+Access, such as those on your LAN. The directive has no default order: set
+one with the `order` global option, or use it inside `route`.
+
+Point the hostname at the tunnel as for any other site. Its service in the
+Cloudflare dashboard does not matter, since all tunnel traffic goes to Caddy.
+
 ## Build
 
 ```sh
@@ -77,8 +121,13 @@ xcaddy build \
   stand-in TLS state: `{http.request.scheme}` is `https`, `protocol https`
   matches, `reverse_proxy` sends `X-Forwarded-Proto: https`. TLS version,
   cipher and client certificates are not known, so their placeholders are empty.
-- Only HTTP traffic is tested. WebSocket upgrades are handed to Caddy (both
-  of cloudflared's transports support hijacking), and private-network (WARP)
-  routing is wired up as in cloudflared, but neither has been tested.
+- Only HTTP traffic is tested against Cloudflare. WebSocket upgrades are
+  handed to Caddy (both of cloudflared's transports support hijacking), and
+  private-network (WARP) routing is wired up as in cloudflared, but neither
+  has been tested through a real tunnel. `cf_access` is tested with
+  cloudflared's access client on a listener, and with a stand-in for the
+  tunnel's response writer.
+- Ingress rules from the Cloudflare dashboard are not used: every hostname
+  goes to Caddy. Use `cf_access` for TCP services.
 - Duplicate Prometheus registrations are ignored process-wide, because
   cloudflared's supervisor registers metrics unguarded on the global registry.
