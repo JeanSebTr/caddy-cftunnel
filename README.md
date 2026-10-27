@@ -80,7 +80,7 @@ Cloudflare dashboard does not matter, since all tunnel traffic goes to Caddy.
 ## Build
 
 ```sh
-go build -o caddy ./cmd/caddy     # Go 1.26+
+go build -o caddy ./cmd/caddy     # Go 1.27.3+
 ```
 
 With xcaddy, repeat the `replace` directives from `go.mod`: dependents do
@@ -98,7 +98,7 @@ xcaddy build \
 ## How it works
 
 - The connector is cloudflared's own code (`supervisor`, `orchestration`),
-  pinned to release 2026.10.0 and reporting that version to the edge.
+  pinned to release 2026.10.4 and reporting that version to the edge.
 - Requests to `management.argotunnel.com` (dashboard host details, live logs)
   are answered by cloudflared. Everything else goes to
   `caddyhttp.Server.ServeHTTP`.

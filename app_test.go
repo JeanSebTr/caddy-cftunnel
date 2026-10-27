@@ -315,7 +315,7 @@ func TestRealConnector(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("run %d: shutdown took %s", i, time.Since(start).Round(time.Millisecond))
-		if logs.FilterMessageSnippet("Version 2026.10.0").Len() == 0 {
+		if logs.FilterMessageSnippet("Version "+cloudflaredVersion).Len() == 0 {
 			t.Fatal("cloudflared logs did not reach zap")
 		}
 		for _, e := range logs.FilterMessageSnippet("Register tunnel error").All() {
